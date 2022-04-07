@@ -1,0 +1,6 @@
+name: python
+keywords: []
+multiline:
+  start: '"""'
+  end: '"""'
+comment: '#'

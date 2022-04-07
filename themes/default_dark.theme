@@ -1,0 +1,27 @@
+name: default_dark
+display: Default Dark
+
+font: Fira Code
+
+editor:
+  filemenu:
+    background: "#262626"
+  menubar:
+    background: "#262626"
+  textbox:
+    background: "#262626"
+  background: "#3A3A3A"
+  text:
+    colour: "#FFFFFF"
+    italic: false
+
+syntax:
+  keyword:
+    colour: "#FF0000"
+    italic: false
+  multiline:
+    colour: "#AF6515"
+    italic: true
+  comment:
+    colour: "#FF0000"
+    italic: true
