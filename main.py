@@ -63,6 +63,7 @@ def loadSyntax(lang: str):
             return yaml.safe_load(f)
     except FileNotFoundError:
         QMessageBox(QMessageBox.Icon.Warning, "Warning", "Could not open syntax file. %s" % langPath).exec()
+        return {}
 
 class Window:
     X = 160
@@ -86,46 +87,60 @@ class SyntaxHighlighter(QSyntaxHighlighter):
     
     def isOutsideComment(self):
         return self.previousBlockState() == BlockState.OutsideComment
-    
-    def highlightPythonMultiline(self, text: str):
+
+    def getFormat(self, ruleType: str):
+        if ruleType not in ('keyword', 'operator', 'brace', 'definition', 'string', 'comment', 'special'):
+            raise ValueError("Invalid formatting type")
+        
         fmt = QTextCharFormat()
-        fmt.setForeground(QColor(self.theme['multiline']['colour']))
-        fmt.setFontItalic(self.theme['multiline']['italic'])
+        try:
+            fmt.setForeground(QColor(self.theme[ruleType]['colour']))
+            fmt.setFontItalic(self.theme[ruleType]['italic'])
+        except KeyError as error:
+            QMessageBox(QMessageBox.Icon.Critical, "Error", "Invalid format").exec()
+            raise error
 
-        ptn = self.language['multiline']['start']
-
-        if self.isInsideComment():
-            self.setFormat(0, len(text), fmt)
-            self.setCurrentBlockState(BlockState.InsideComment)
-
-        match = re.fullmatch(ptn, text)
-        if match:
-            if self.isOutsideComment():
-                self.setFormat(match.pos, len(text)-match.pos, fmt)
-                self.setCurrentBlockState(BlockState.InsideComment)
-
-            elif self.isInsideComment():
-                self.setFormat(0, match.end(), fmt)
-                self.setCurrentBlockState(BlockState.OutsideComment)
-    
-    def highlightMultiline(self, text: str):
-        ...
+        return fmt
 
     def highlightBlock(self, text: str):
-        if self.language == "py":
-            self.highlightPythonMultiline(text)
-        else:
-            self.highlightMultiline(text)
+        keywordFormat = self.getFormat('keyword')
+        operatorFormat = self.getFormat('operator')
+        braceFormat = self.getFormat('brace')
+        specialFormat = self.getFormat('special')
+        definitionFormat = self.getFormat('definition')
+        stringFormat = self.getFormat('string')
+        commentFormat = self.getFormat('comment')
 
-        if self.isInsideComment(): return
-        
-        kwFmt = QTextCharFormat()
-        kwFmt.setForeground(QColor(self.theme['keyword']['colour']))
-        kwFmt.setFontItalic(self.theme['keyword']['italic'])
+        try:
+            keywordRules = [r'\b%s\b' % kw for kw in self.language['keywords']]
+            operatorRules = [r'%s' % o for o in self.language['operators']]
+            braceRules = [r'%s' % b for b in self.language['braces']]
+            definitionRules = [r'\b%s\b\s*(\w+)' % d for d in self.language['definitions']]
+            stringRules = [
+                r'"[^"\\]*(\\.[^"\\]*)*"',
+                r"'[^'\\]*(\\.[^'\\]*)*'"
+            ] # strings tend to be the same regardless of language and they are icky to deal with in yml
+            specialRules = [r'%s' % s for s in self.language['specials']]
+            commentRule = r'%s[^\n]*' % self.language['comment']
 
-        for kwRule in [r"\b%s\b" % kw for kw in keyword.kwlist]:
-            for match in re.finditer(kwRule, text):
-                self.setFormat(match.start(), match.end() - match.start(), kwFmt)
+            self.searchAndApplyFormatting(text, keywordRules, keywordFormat)
+            self.searchAndApplyFormatting(text, operatorRules, operatorFormat)
+            self.searchAndApplyFormatting(text, braceRules, braceFormat)
+            self.searchAndApplyFormatting(text, specialRules, specialFormat)
+            self.searchAndApplyFormatting(text, definitionRules, definitionFormat, 1)
+            self.searchAndApplyFormatting(text, stringRules, stringFormat)
+
+            for match in re.finditer(commentRule, text):
+                self.setFormat(match.start(), match.end() - match.start(), commentFormat)
+
+        except KeyError:
+            QMessageBox(QMessageBox.Icon.Critical, "Error", "Invalid format").exec()
+            return
+    
+    def searchAndApplyFormatting(self, text: str, rules: list[str], format: QTextCharFormat, index: int = 0):
+        for rule in rules:
+            for match in re.finditer(rule, text):
+                self.setFormat(match.start(index), match.end(index) - match.start(index), format)
 
 class TextBox(QPlainTextEdit):
     def __init__(self, theme: dict, language: str):

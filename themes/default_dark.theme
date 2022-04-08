@@ -19,9 +19,24 @@ syntax:
   keyword:
     colour: "#FF0000"
     italic: false
+  operator:
+    colour: "#0000FF"
+    italic: false
+  brace:
+    colour: "#0F0F0F"
+    italic: false
+  special:
+    colour: "#FFFF00"
+    italic: false
+  definition:
+    colour: "#FF00FF"
+    italic: false
+  string:
+    colour: "#00FFFF"
+    italic: true
   multiline:
     colour: "#AF6515"
     italic: true
   comment:
-    colour: "#FF0000"
+    colour: "#00FF00"
     italic: true
