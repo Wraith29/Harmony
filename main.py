@@ -1,4 +1,3 @@
-import keyword
 import os
 import re
 from sys import argv
