@@ -1,6 +1,7 @@
 import os
 import re
 from sys import argv
+from dataclasses import dataclass
 from configparser import ConfigParser
 
 import yaml
@@ -14,10 +15,13 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QFileDialog,
     QTabWidget,
+    QGroupBox,
     QTreeView,
     QLineEdit,
+    QComboBox,
     QDialog,
     QWidget,
+    QLabel,
     QMenu,
 )
 
@@ -64,16 +68,96 @@ def loadSyntax(lang: str):
         QMessageBox(QMessageBox.Icon.Warning, "Warning", "Could not open syntax file. %s" % langPath).exec()
         return {}
 
-class Window:
+def getThemes():
+    fileNames = os.listdir(os.path.abspath("themes"))
+
+    themes = []
+    for fn in fileNames:
+        with open(os.path.join(os.path.abspath("themes"), fn), 'r') as f:
+            ymlData = yaml.safe_load(f)
+        
+        themes.append(Theme(fn, ymlData['display']))
+    
+    return themes
+
+class HarmonyWindowSettings:
     X = 160
     Y = 90
     Width = 1600
     Height = 900
     Title = "Harmony Editor"
 
+class SettingsWindowSettings:
+    X = 320
+    Y = 180
+    Width = 1280
+    Height = 720
+    Title = "Settings"
+
+@dataclass
+class Theme:
+    FileName: str
+    DisplayName: str
+
 class BlockState:
     OutsideComment = -1
     InsideComment = 1
+
+class Settings(QDialog):
+    def __init__(self, theme: dict, settings: ConfigParser) -> None:
+        QDialog.__init__(self)
+        self.theme = theme['settings']
+        self.settings = settings
+
+        self.build()
+
+    def build(self):
+        self.setLayout(QVBoxLayout())
+        self.buildForm()
+        self.configureStyling()
+        self.setWindowTitle(SettingsWindowSettings.Title)
+        self.setGeometry(
+            SettingsWindowSettings.X,
+            SettingsWindowSettings.Y,
+            SettingsWindowSettings.Width,
+            SettingsWindowSettings.Height
+        )
+
+    def buildForm(self):
+        self.buildThemeForm()
+
+        saveSettingsButton = QPushButton("Save")
+        saveSettingsButton.clicked.connect(self.saveSettings)
+
+        self.layout().addWidget(saveSettingsButton)
+
+    def buildThemeForm(self):
+        themes = getThemes()
+        currentThemeName = self.settings.get('settings', 'theme') + ".theme"
+        currentThemeIdx = next(idx for idx, theme in enumerate(themes) if theme.FileName == currentThemeName)
+
+        themeGroupBox = QGroupBox("Theme")
+        themeGroupBox.setLayout(QHBoxLayout())
+        themeGroupBox.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        themeGroupBox.layout().addWidget(QLabel("Theme: "))
+        themeSelector = QComboBox()
+        themeSelector.addItems([theme.DisplayName for theme in themes])
+        themeSelector.setCurrentIndex(currentThemeIdx)
+
+        themeGroupBox.layout().addWidget(themeSelector)
+
+        self.layout().addWidget(themeGroupBox)
+
+    def configureStyling(self):
+        self.setStyleSheet(f"""
+            background: {self.theme['background']};
+            color: {self.theme['text']['colour']}
+        """)
+
+    def saveSettings(self):
+        # TODO save settings
+        ...
 
 class SyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, document: QTextDocument, theme: dict, language: str):
@@ -359,21 +443,20 @@ class Harmony(QMainWindow):
         self.configureStyling()
         self.setCentralWidget(QWidget())
         self.centralWidget().setLayout(self.mainLayout)
-        self.setWindowTitle(Window.Title)
+        self.setWindowTitle(HarmonyWindowSettings.Title)
         self.setGeometry(
-            Window.X,
-            Window.Y,
-            Window.Width,
-            Window.Height
+            HarmonyWindowSettings.X,
+            HarmonyWindowSettings.Y,
+            HarmonyWindowSettings.Width,
+            HarmonyWindowSettings.Height
         )
 
     def configureMenu(self):
         self.configureFileMenu()
+        self.configureSettingsMenu()
 
     def configureFileMenu(self):
         fileMenu = self.menuBar().addMenu("&File")
-        newAction = fileMenu.addAction("&New")
-        newAction.setShortcut(QKeySequence("Ctrl+N"))
 
         openAction = fileMenu.addAction("&Open Folder")
         openAction.triggered.connect(self.openFolder)
@@ -386,6 +469,16 @@ class Harmony(QMainWindow):
         closeAction = fileMenu.addAction("&Close")
         closeAction.triggered.connect(self.tabContainer.closeTab)
         closeAction.setShortcut(QKeySequence("Ctrl+W"))
+
+    def configureSettingsMenu(self):
+        settingsMenu = self.menuBar().addMenu("&Settings")
+        preferencesAction = settingsMenu.addAction("&Preferences")
+        preferencesAction.triggered.connect(self.openSettingsMenu)
+        preferencesAction.setShortcut(QKeySequence("Ctrl+,"))
+    
+    def openSettingsMenu(self):
+        settingsMenu = Settings(self.theme, self.configParser)
+        settingsMenu.exec()
 
     def openFolder(self):
         path = QFileDialog.getExistingDirectory(self, "Select a Folder", "C:\Harmony")
